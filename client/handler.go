@@ -28,7 +28,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/pborman/uuid"
+	"github.com/gofrs/uuid"
+
+	"github.com/ory/x/uuidx"
 
 	"github.com/ory/x/urlx"
 
@@ -156,10 +158,18 @@ func (h *Handler) CreateClient(r *http.Request, validator func(context.Context, 
 	}
 
 	if isDynamic {
-		c.OutfacingID = uuid.New()
+		c.LegacyClientID = uuidx.NewV4().String()
 		if c.Secret != "" {
-			return nil, errorsx.WithStack(herodot.ErrForbidden.WithReasonf("It is not allowed to choose your own OAuth2 Client secret."))
+			return nil, errorsx.WithStack(herodot.ErrBadRequest.WithReasonf("It is not allowed to choose your own OAuth2 Client secret."))
 		}
+	}
+
+	if c.LegacyClientID == "" {
+		c.LegacyClientID = uuidx.NewV4().String()
+	}
+
+	if _, err := uuid.FromString(c.LegacyClientID); err != nil {
+		return nil, errorsx.WithStack(herodot.ErrBadRequest.WithReasonf("Only UUID V4 (e.g. 8dcd6868-e294-4180-aa36-fbad26de79a6) can be chosen as OAuth2 Client IDs but got: %s", c.LegacyClientID))
 	}
 
 	if len(c.Secret) == 0 {
@@ -185,7 +195,7 @@ func (h *Handler) CreateClient(r *http.Request, validator func(context.Context, 
 
 	c.RegistrationAccessToken = token
 	c.RegistrationAccessTokenSignature = signature
-	c.RegistrationClientURI = urlx.AppendPaths(h.r.Config().PublicURL(r.Context()), DynClientsHandlerPath+"/"+c.OutfacingID).String()
+	c.RegistrationClientURI = urlx.AppendPaths(h.r.Config().PublicURL(r.Context()), DynClientsHandlerPath+"/"+c.GetID()).String()
 
 	if err := h.r.ClientManager().CreateClient(r.Context(), &c); err != nil {
 		return nil, err
@@ -226,7 +236,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request, ps httprouter.P
 		return
 	}
 
-	c.OutfacingID = ps.ByName("id")
+	c.LegacyClientID = ps.ByName("id")
 	if err := h.updateClient(r.Context(), &c, h.r.ClientValidator().Validate); err != nil {
 		h.r.Writer().WriteError(w, r, err)
 		return
@@ -319,7 +329,7 @@ func (h *Handler) UpdateDynamicRegistration(w http.ResponseWriter, r *http.Reque
 	c.RegistrationAccessToken = token
 	c.RegistrationAccessTokenSignature = signature
 
-	c.OutfacingID = client.GetID()
+	c.LegacyClientID = client.GetID()
 	if err := h.updateClient(r.Context(), &c, h.r.ClientValidator().ValidateDynamicRegistration); err != nil {
 		h.r.Writer().WriteError(w, r, err)
 		return

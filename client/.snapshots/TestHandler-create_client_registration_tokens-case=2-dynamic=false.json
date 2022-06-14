@@ -1,5 +1,4 @@
 {
-  "client_id": "create-client-1",
   "client_name": "",
   "redirect_uris": null,
   "grant_types": null,
@@ -16,6 +15,5 @@
   "client_secret_expires_at": 0,
   "subject_type": "",
   "jwks": {},
-  "metadata": {},
-  "registration_client_uri": "http://localhost:4444/oauth2/register/create-client-1"
+  "metadata": {}
 }

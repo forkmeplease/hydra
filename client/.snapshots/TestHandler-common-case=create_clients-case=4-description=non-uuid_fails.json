@@ -1,0 +1,4 @@
+{
+  "error": "The request was malformed or contained invalid parameters",
+  "error_description": "Only UUID V4 (e.g. 8dcd6868-e294-4180-aa36-fbad26de79a6) can be chosen as OAuth2 Client IDs but got: not-a-uuid"
+}

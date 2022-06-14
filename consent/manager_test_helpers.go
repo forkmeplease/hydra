@@ -52,7 +52,7 @@ func MockConsentRequest(key string, remember bool, rememberFor int, hasError boo
 			UILocales: []string{"fr" + key, "de" + key},
 			Display:   "popup" + key,
 		},
-		Client:                 &client.Client{OutfacingID: "fk-client-" + key},
+		Client:                 &client.Client{LegacyClientID: "fk-client-" + key},
 		RequestURL:             "https://request-url/path" + key,
 		LoginChallenge:         sqlxx.NullString(makeID(loginChallengeBase, tenant, key)),
 		LoginSessionID:         sqlxx.NullString(makeID("fk-login-session", tenant, key)),
@@ -103,7 +103,7 @@ func MockLogoutRequest(key string, withClient bool, tenant string) (c *LogoutReq
 	var cl *client.Client
 	if withClient {
 		cl = &client.Client{
-			OutfacingID: "fk-client-" + key,
+			LegacyClientID: "fk-client-" + key,
 		}
 	}
 	return &LogoutRequest{
@@ -128,7 +128,7 @@ func MockAuthRequest(key string, authAt bool, tenant string) (c *LoginRequest, h
 			Display:   "popup" + key,
 		},
 		RequestedAt:    time.Now().UTC().Add(-time.Minute),
-		Client:         &client.Client{OutfacingID: "fk-client-" + key},
+		Client:         &client.Client{LegacyClientID: "fk-client-" + key},
 		Subject:        "subject" + key,
 		RequestURL:     "https://request-url/path" + key,
 		Skip:           true,
@@ -262,7 +262,7 @@ func makeID(base string, tenant string, key string) string {
 }
 
 func TestHelperNID(t1ClientManager client.Manager, t1ValidNID Manager, t2InvalidNID Manager) func(t *testing.T) {
-	testClient := client.Client{OutfacingID: fmt.Sprintf("2022-03-11-client-nid-test-1")}
+	testClient := client.Client{LegacyClientID: fmt.Sprintf("2022-03-11-client-nid-test-1")}
 	testLS := LoginSession{
 		ID:      "2022-03-11-ls-nid-test-1",
 		Subject: "2022-03-11-test-1-sub",
@@ -272,7 +272,7 @@ func TestHelperNID(t1ClientManager client.Manager, t1ValidNID Manager, t2Invalid
 		Subject:     "2022-03-11-test-1-sub",
 		Verifier:    "2022-03-11-test-1-ver",
 		RequestedAt: time.Now(),
-		Client:      &client.Client{OutfacingID: fmt.Sprintf("2022-03-11-client-nid-test-1")},
+		Client:      &client.Client{LegacyClientID: fmt.Sprintf("2022-03-11-client-nid-test-1")},
 	}
 	testHLR := HandledLoginRequest{
 		LoginRequest:           &testLR,
@@ -318,7 +318,7 @@ func ManagerTests(m Manager, clientManager client.Manager, fositeManager x.Fosit
 		}
 		t.Run("case=init-fks", func(t *testing.T) {
 			for _, k := range []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "rv1", "rv2"} {
-				require.NoError(t, clientManager.CreateClient(context.Background(), &client.Client{OutfacingID: fmt.Sprintf("fk-client-%s", k)}))
+				require.NoError(t, clientManager.CreateClient(context.Background(), &client.Client{LegacyClientID: fmt.Sprintf("fk-client-%s", k)}))
 
 				require.NoError(t, m.CreateLoginSession(context.Background(), &LoginSession{
 					ID:              makeID("fk-login-session", tenant, k),
@@ -330,7 +330,7 @@ func ManagerTests(m Manager, clientManager client.Manager, fositeManager x.Fosit
 					ID:              makeID("fk-login-challenge", tenant, k),
 					Subject:         fmt.Sprintf("subject%s", k),
 					Verifier:        makeID("fk-login-verifier", tenant, k),
-					Client:          &client.Client{OutfacingID: fmt.Sprintf("fk-client-%s", k)},
+					Client:          &client.Client{LegacyClientID: fmt.Sprintf("fk-client-%s", k)},
 					AuthenticatedAt: sqlxx.NullTime(time.Now()),
 					RequestedAt:     time.Now(),
 				}
@@ -714,7 +714,7 @@ func ManagerTests(m Manager, clientManager client.Manager, fositeManager x.Fosit
 						require.NoError(t, err)
 						for _, consent := range consents {
 							assert.Contains(t, tc.challenges, consent.ID)
-							assert.Contains(t, tc.clients, consent.ConsentRequest.Client.OutfacingID)
+							assert.Contains(t, tc.clients, consent.ConsentRequest.Client.GetID())
 						}
 					}
 
@@ -782,7 +782,7 @@ func ManagerTests(m Manager, clientManager client.Manager, fositeManager x.Fosit
 						}
 						require.NoError(t, m.CreateLoginSession(context.Background(), ls))
 
-						cl := &client.Client{OutfacingID: uuid.New().String()}
+						cl := &client.Client{LegacyClientID: uuid.New().String()}
 						switch k % 4 {
 						case 0:
 							cl.FrontChannelLogoutURI = "http://some-url.com/"
@@ -818,10 +818,10 @@ func ManagerTests(m Manager, clientManager client.Manager, fositeManager x.Fosit
 						for _, e := range es {
 							var found bool
 							for _, a := range actual {
-								if e.OutfacingID == a.OutfacingID {
+								if e.GetID() == a.GetID() {
 									found = true
 								}
-								assert.Equal(t, e.OutfacingID, a.OutfacingID)
+								assert.Equal(t, e.GetID(), a.GetID())
 								assert.Equal(t, e.FrontChannelLogoutURI, a.FrontChannelLogoutURI)
 								assert.Equal(t, e.BackChannelLogoutURI, a.BackChannelLogoutURI)
 							}

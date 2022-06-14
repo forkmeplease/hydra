@@ -1,9 +1,6 @@
-export const prng = () => {
-  var array = new Uint32Array(2)
-  crypto.getRandomValues(array)
+import { v4 as uuidv4 } from 'uuid'
 
-  return `${array[0].toString()}${array[1].toString()}`
-}
+export const prng = () => uuidv4()
 
 const isStatusOk = (res) =>
   res.ok

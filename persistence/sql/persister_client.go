@@ -3,8 +3,9 @@ package sql
 import (
 	"context"
 
-	"github.com/gobuffalo/pop/v6"
 	"github.com/gofrs/uuid"
+
+	"github.com/gobuffalo/pop/v6"
 
 	"github.com/ory/x/errorsx"
 
@@ -87,7 +88,12 @@ func (p *Persister) CreateClient(ctx context.Context, c *client.Client) error {
 	}
 
 	c.Secret = string(h)
-	c.ID = uuid.Must(uuid.NewV4())
+	if c.ID == uuid.Nil {
+		c.ID = uuid.Must(uuid.NewV4())
+	}
+	if c.LegacyClientID == "" {
+		c.LegacyClientID = c.ID.String()
+	}
 	return sqlcon.HandleError(p.CreateWithNetwork(ctx, c))
 }
 

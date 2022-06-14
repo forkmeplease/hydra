@@ -51,11 +51,11 @@ func TestHandler(t *testing.T) {
 			c       *client.Client
 			dynamic bool
 		}{
-			{c: &client.Client{OutfacingID: "create-client-0"}},
+			{c: &client.Client{LegacyClientID: "f4cce82a-94ef-4c7e-92a6-b4054362d2b4"}},
 			{dynamic: true, c: new(client.Client)},
-			{c: &client.Client{OutfacingID: "create-client-1"}},
-			{c: &client.Client{Secret: "create-client-2"}},
-			{c: &client.Client{OutfacingID: "create-client-3"}, dynamic: true},
+			{c: &client.Client{LegacyClientID: "4df581fe-e971-4661-a92a-f69f776e4123"}},
+			{c: &client.Client{Secret: "01bbf13a-ae3e-44d5-b4b4-dd78137041be"}},
+			{c: &client.Client{LegacyClientID: "a24e960d-5764-4a74-a687-f7fc1b3545b4"}, dynamic: true},
 		} {
 			t.Run(fmt.Sprintf("case=%d/dynamic=%v", k, tc.dynamic), func(t *testing.T) {
 				var b bytes.Buffer
@@ -70,7 +70,7 @@ func TestHandler(t *testing.T) {
 				require.NoError(t, err)
 				require.NotEqual(t, c.NID, uuid.Nil)
 
-				except := []string{"registration_access_token", "updated_at", "created_at"}
+				except := []string{"client_id", "registration_access_token", "updated_at", "created_at", "registration_client_uri"}
 				require.NotEmpty(t, c.RegistrationAccessToken)
 				require.NotEqual(t, c.RegistrationAccessTokenSignature, c.RegistrationAccessToken)
 				if !hadSecret {
@@ -79,8 +79,8 @@ func TestHandler(t *testing.T) {
 				}
 
 				if tc.dynamic {
-					require.NotEmpty(t, c.OutfacingID)
-					assert.Equal(t, reg.Config().PublicURL(ctx).String()+"oauth2/register/"+c.OutfacingID, c.RegistrationClientURI)
+					require.NotEmpty(t, c.GetID())
+					assert.Equal(t, reg.Config().PublicURL(ctx).String()+"oauth2/register/"+c.GetID(), c.RegistrationClientURI)
 					except = append(except, "client_id", "client_secret", "registration_client_uri")
 				}
 
@@ -99,7 +99,7 @@ func TestHandler(t *testing.T) {
 
 		t.Run("valid auth", func(t *testing.T) {
 			actual, err := h.ValidDynamicAuth(&http.Request{Header: http.Header{"Authorization": {"Bearer " + expected.RegistrationAccessToken}}}, httprouter.Params{
-				httprouter.Param{Key: "id", Value: expected.OutfacingID},
+				httprouter.Param{Key: "id", Value: expected.GetID()},
 			})
 			require.NoError(t, err, "authentication with registration access token works")
 			assert.EqualValues(t, expected.GetID(), actual.GetID())
@@ -107,14 +107,14 @@ func TestHandler(t *testing.T) {
 
 		t.Run("missing auth", func(t *testing.T) {
 			_, err := h.ValidDynamicAuth(&http.Request{}, httprouter.Params{
-				httprouter.Param{Key: "id", Value: expected.OutfacingID},
+				httprouter.Param{Key: "id", Value: expected.GetID()},
 			})
 			require.Error(t, err, "authentication without registration access token fails")
 		})
 
 		t.Run("incorrect auth", func(t *testing.T) {
 			_, err := h.ValidDynamicAuth(&http.Request{Header: http.Header{"Authorization": {"Bearer invalid"}}}, httprouter.Params{
-				httprouter.Param{Key: "id", Value: expected.OutfacingID},
+				httprouter.Param{Key: "id", Value: expected.GetID()},
 			})
 			require.Error(t, err, "authentication with invalid registration access token fails")
 		})
@@ -174,7 +174,7 @@ func TestHandler(t *testing.T) {
 		ts, hc := newServer(t, false)
 
 		trap := &client.Client{
-			OutfacingID: "dynamic-client-test-trap",
+			LegacyClientID: "8dcd6868-e294-4180-aa36-fbad26de79a6",
 		}
 		createClient(t, trap, ts, client.ClientsHandlerPath)
 
@@ -182,10 +182,10 @@ func TestHandler(t *testing.T) {
 			method string
 			path   string
 		}{
-			{method: "GET", path: ts.URL + client.DynClientsHandlerPath + "/" + trap.OutfacingID},
+			{method: "GET", path: ts.URL + client.DynClientsHandlerPath + "/" + trap.GetID()},
 			{method: "POST", path: ts.URL + client.DynClientsHandlerPath},
-			{method: "PUT", path: ts.URL + client.DynClientsHandlerPath + "/" + trap.OutfacingID},
-			{method: "DELETE", path: ts.URL + client.DynClientsHandlerPath + "/" + trap.OutfacingID},
+			{method: "PUT", path: ts.URL + client.DynClientsHandlerPath + "/" + trap.GetID()},
+			{method: "DELETE", path: ts.URL + client.DynClientsHandlerPath + "/" + trap.GetID()},
 		} {
 			t.Run("method="+tc.method, func(t *testing.T) {
 				req, err := http.NewRequest(tc.method, tc.path, nil)
@@ -201,7 +201,7 @@ func TestHandler(t *testing.T) {
 	t.Run("case=selfservice with incorrect or missing auth", func(t *testing.T) {
 		ts, hc := newServer(t, true)
 		expected := &client.Client{
-			OutfacingID:             "incorrect-missing-client",
+			LegacyClientID:          "3c1cd777-0b14-43ab-9b52-c00ab534f8e8",
 			Secret:                  "averylongsecret",
 			RedirectURIs:            []string{"http://localhost:3000/cb"},
 			TokenEndpointAuthMethod: "client_secret_basic",
@@ -210,9 +210,9 @@ func TestHandler(t *testing.T) {
 
 		// Create the second client
 		secondClient := &client.Client{
-			OutfacingID:  "second-existing-client",
-			Secret:       "averylongsecret",
-			RedirectURIs: []string{"http://localhost:3000/cb"},
+			LegacyClientID: "e0a877ec-63a6-4f39-9f0f-ebd9e0129220",
+			Secret:         "averylongsecret",
+			RedirectURIs:   []string{"http://localhost:3000/cb"},
 		}
 		createClient(t, secondClient, ts, client.ClientsHandlerPath)
 
@@ -220,7 +220,7 @@ func TestHandler(t *testing.T) {
 			for _, method := range []string{"GET", "DELETE", "PUT"} {
 				t.Run("method="+method, func(t *testing.T) {
 					t.Run("without auth", func(t *testing.T) {
-						req, err := http.NewRequest(method, ts.URL+client.DynClientsHandlerPath+"/"+expected.OutfacingID, nil)
+						req, err := http.NewRequest(method, ts.URL+client.DynClientsHandlerPath+"/"+expected.GetID(), nil)
 						require.NoError(t, err)
 
 						res, err := hc.Do(req)
@@ -234,13 +234,13 @@ func TestHandler(t *testing.T) {
 					})
 
 					t.Run("without incorrect auth", func(t *testing.T) {
-						body, res := fetchWithBearerAuth(t, method, ts.URL+client.DynClientsHandlerPath+"/"+expected.OutfacingID, "incorrect", nil)
+						body, res := fetchWithBearerAuth(t, method, ts.URL+client.DynClientsHandlerPath+"/"+expected.GetID(), "incorrect", nil)
 						assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 						snapshotx.SnapshotTExcept(t, newResponseSnapshot(body, res), nil)
 					})
 
 					t.Run("with a different client auth", func(t *testing.T) {
-						body, res := fetchWithBearerAuth(t, method, ts.URL+client.DynClientsHandlerPath+"/"+expected.OutfacingID, secondClient.RegistrationAccessToken, nil)
+						body, res := fetchWithBearerAuth(t, method, ts.URL+client.DynClientsHandlerPath+"/"+expected.GetID(), secondClient.RegistrationAccessToken, nil)
 						assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 						snapshotx.SnapshotTExcept(t, newResponseSnapshot(body, res), nil)
 					})
@@ -252,7 +252,7 @@ func TestHandler(t *testing.T) {
 	t.Run("common", func(t *testing.T) {
 		ts, _ := newServer(t, true)
 		expected := &client.Client{
-			OutfacingID:             "existing-client",
+			LegacyClientID:          "5dad3497-0cb7-469f-8e30-18cc5d35e10e",
 			Secret:                  "averylongsecret",
 			RedirectURIs:            []string{"http://localhost:3000/cb"},
 			TokenEndpointAuthMethod: "client_secret_basic",
@@ -269,8 +269,8 @@ func TestHandler(t *testing.T) {
 				{
 					d: "basic dynamic client registration",
 					payload: &client.Client{
-						OutfacingID:  "create-client-1",
-						RedirectURIs: []string{"http://localhost:3000/cb"},
+						LegacyClientID: "create-client-1",
+						RedirectURIs:   []string{"http://localhost:3000/cb"},
 					},
 					path:       client.DynClientsHandlerPath,
 					statusCode: http.StatusCreated,
@@ -278,10 +278,10 @@ func TestHandler(t *testing.T) {
 				{
 					d: "basic admin registration",
 					payload: &client.Client{
-						OutfacingID:  "create-client-2",
-						Secret:       "averylongsecret",
-						RedirectURIs: []string{"http://localhost:3000/cb"},
-						Metadata:     []byte(`{"foo":"bar"}`),
+						LegacyClientID: "0f1bb84e-4405-4e93-950b-cdae88c5dbf6",
+						Secret:         "averylongsecret",
+						RedirectURIs:   []string{"http://localhost:3000/cb"},
+						Metadata:       []byte(`{"foo":"bar"}`),
 					},
 					path:       client.ClientsHandlerPath,
 					statusCode: http.StatusCreated,
@@ -289,9 +289,9 @@ func TestHandler(t *testing.T) {
 				{
 					d: "metadata fails for dynamic client registration",
 					payload: &client.Client{
-						OutfacingID:  "create-client-3",
-						RedirectURIs: []string{"http://localhost:3000/cb"},
-						Metadata:     []byte(`{"foo":"bar"}`),
+						LegacyClientID: "3f9ffb75-dc9d-4850-b6b6-40b2e5aa5aa4",
+						RedirectURIs:   []string{"http://localhost:3000/cb"},
+						Metadata:       []byte(`{"foo":"bar"}`),
 					},
 					path:       client.DynClientsHandlerPath,
 					statusCode: http.StatusBadRequest,
@@ -299,9 +299,19 @@ func TestHandler(t *testing.T) {
 				{
 					d: "short secret fails for admin",
 					payload: &client.Client{
-						OutfacingID:  "create-client-4",
-						Secret:       "short",
-						RedirectURIs: []string{"http://localhost:3000/cb"},
+						LegacyClientID: "98941dac-f963-4468-8a23-9483b1e04e3c",
+						Secret:         "short",
+						RedirectURIs:   []string{"http://localhost:3000/cb"},
+					},
+					path:       client.ClientsHandlerPath,
+					statusCode: http.StatusBadRequest,
+				},
+				{
+					d: "non-uuid fails",
+					payload: &client.Client{
+						LegacyClientID: "not-a-uuid",
+						Secret:         "averylongsecret",
+						RedirectURIs:   []string{"http://localhost:3000/cb"},
 					},
 					path:       client.ClientsHandlerPath,
 					statusCode: http.StatusBadRequest,
@@ -309,12 +319,21 @@ func TestHandler(t *testing.T) {
 				{
 					d: "basic dynamic client registration",
 					payload: &client.Client{
-						OutfacingID:  "create-client-5",
+						LegacyClientID: "ead800c5-a316-4d0c-bf00-d25666ba72cf",
+						Secret:         "averylongsecret",
+						RedirectURIs:   []string{"http://localhost:3000/cb"},
+					},
+					path:       client.DynClientsHandlerPath,
+					statusCode: http.StatusBadRequest,
+				},
+				{
+					d: "empty ID succeeds",
+					payload: &client.Client{
 						Secret:       "averylongsecret",
 						RedirectURIs: []string{"http://localhost:3000/cb"},
 					},
-					path:       client.DynClientsHandlerPath,
-					statusCode: http.StatusForbidden,
+					path:       client.ClientsHandlerPath,
+					statusCode: http.StatusCreated,
 				},
 			} {
 				t.Run(fmt.Sprintf("case=%d/description=%s", k, tc.d), func(t *testing.T) {
@@ -323,6 +342,10 @@ func TestHandler(t *testing.T) {
 					exclude := []string{"updated_at", "created_at", "registration_access_token"}
 					if tc.path == client.DynClientsHandlerPath {
 						exclude = append(exclude, "client_id", "client_secret", "registration_client_uri")
+					}
+					if tc.payload.LegacyClientID == "" {
+						exclude = append(exclude, "client_id", "registration_client_uri")
+						assert.NotEqual(t, uuid.Nil.String(), gjson.Get(body, "client_id").String(), body)
 					}
 					if tc.statusCode == http.StatusOK {
 						for _, key := range exclude {
@@ -377,9 +400,9 @@ func TestHandler(t *testing.T) {
 
 		t.Run("case=fetching existing client", func(t *testing.T) {
 			expected := createClient(t, &client.Client{
-				OutfacingID:  "existing-client-fetch",
-				Secret:       "rdetzfuzgihojuzgtfrdes",
-				RedirectURIs: []string{"http://localhost:3000/cb"},
+				LegacyClientID: "0e837115-5105-4da7-a85e-ac286c2ef50e",
+				Secret:         "rdetzfuzgihojuzgtfrdes",
+				RedirectURIs:   []string{"http://localhost:3000/cb"},
 			}, ts, client.ClientsHandlerPath)
 			id := gjson.Get(expected, "client_id").String()
 			rat := gjson.Get(expected, "registration_access_token").String()
@@ -402,7 +425,7 @@ func TestHandler(t *testing.T) {
 
 		t.Run("case=updating existing client fails with metadata on self service", func(t *testing.T) {
 			expected := &client.Client{
-				OutfacingID:             "update-existing-client-selfservice-metadata",
+				LegacyClientID:          "e3b3d617-73ea-4bf7-9919-43da61815f90",
 				Secret:                  "averylongsecret",
 				RedirectURIs:            []string{"http://localhost:3000/cb"},
 				TokenEndpointAuthMethod: "client_secret_basic",
@@ -415,7 +438,7 @@ func TestHandler(t *testing.T) {
 			payload, err := json.Marshal(expected)
 			require.NoError(t, err)
 
-			body, res := fetchWithBearerAuth(t, "PUT", ts.URL+client.DynClientsHandlerPath+"/"+expected.OutfacingID, gjson.Get(body, "registration_access_token").String(), bytes.NewReader(payload))
+			body, res := fetchWithBearerAuth(t, "PUT", ts.URL+client.DynClientsHandlerPath+"/"+expected.GetID(), gjson.Get(body, "registration_access_token").String(), bytes.NewReader(payload))
 			assert.Equal(t, http.StatusBadRequest, res.StatusCode)
 			snapshotx.SnapshotTExcept(t, newResponseSnapshot(body, res), nil)
 		})
@@ -423,7 +446,7 @@ func TestHandler(t *testing.T) {
 		t.Run("case=updating existing client", func(t *testing.T) {
 			t.Run("endpoint=admin", func(t *testing.T) {
 				expected := &client.Client{
-					OutfacingID:             "update-existing-client-admin",
+					LegacyClientID:          "c614c65a-72f3-4dd4-8217-f4c6343533dc",
 					Secret:                  "averylongsecret",
 					RedirectURIs:            []string{"http://localhost:3000/cb"},
 					TokenEndpointAuthMethod: "client_secret_basic",
@@ -431,14 +454,14 @@ func TestHandler(t *testing.T) {
 				createClient(t, expected, ts, client.ClientsHandlerPath)
 
 				expected.RedirectURIs = append(expected.RedirectURIs, "https://foobar.com")
-				body, res := makeJSON(t, ts, "PUT", client.ClientsHandlerPath+"/"+expected.OutfacingID, expected)
+				body, res := makeJSON(t, ts, "PUT", client.ClientsHandlerPath+"/"+expected.GetID(), expected)
 				assert.Equal(t, http.StatusOK, res.StatusCode)
 				snapshotx.SnapshotTExcept(t, newResponseSnapshot(body, res), []string{"body.created_at", "body.updated_at"})
 			})
 
 			t.Run("endpoint=dynamic client registration", func(t *testing.T) {
 				expected := &client.Client{
-					OutfacingID:             "update-existing-client-selfservice",
+					LegacyClientID:          "b33d7cff-ecc9-4acf-9ce7-67436bc763d4",
 					Secret:                  "averylongsecret",
 					RedirectURIs:            []string{"http://localhost:3000/cb"},
 					TokenEndpointAuthMethod: "client_secret_basic",
@@ -452,23 +475,23 @@ func TestHandler(t *testing.T) {
 				require.NoError(t, err)
 
 				originalRAT := gjson.Get(actual, "registration_access_token").String()
-				body, res := fetchWithBearerAuth(t, "PUT", ts.URL+client.DynClientsHandlerPath+"/"+expected.OutfacingID, originalRAT, bytes.NewReader(payload))
+				body, res := fetchWithBearerAuth(t, "PUT", ts.URL+client.DynClientsHandlerPath+"/"+expected.GetID(), originalRAT, bytes.NewReader(payload))
 				assert.Equal(t, http.StatusOK, res.StatusCode)
 				newToken := gjson.Get(body, "registration_access_token").String()
 				assert.NotEmpty(t, newToken)
 				require.NotEqual(t, originalRAT, newToken, "the new token should be different from the old token")
 				snapshotx.SnapshotTExcept(t, newResponseSnapshot(body, res), []string{"body.created_at", "body.updated_at", "body.registration_access_token"})
 
-				_, res = fetchWithBearerAuth(t, "GET", ts.URL+client.DynClientsHandlerPath+"/"+expected.OutfacingID, originalRAT, bytes.NewReader(payload))
+				_, res = fetchWithBearerAuth(t, "GET", ts.URL+client.DynClientsHandlerPath+"/"+expected.GetID(), originalRAT, bytes.NewReader(payload))
 				assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
-				body, res = fetchWithBearerAuth(t, "GET", ts.URL+client.DynClientsHandlerPath+"/"+expected.OutfacingID, newToken, bytes.NewReader(payload))
+				body, res = fetchWithBearerAuth(t, "GET", ts.URL+client.DynClientsHandlerPath+"/"+expected.GetID(), newToken, bytes.NewReader(payload))
 				assert.Equal(t, http.StatusOK, res.StatusCode)
 				assert.Empty(t, gjson.Get(body, "registration_access_token").String())
 			})
 
 			t.Run("endpoint=dynamic client registration does not allow changing the secret", func(t *testing.T) {
 				expected := &client.Client{
-					OutfacingID:             "update-existing-client-no-secret-change",
+					LegacyClientID:          "d0c76ce1-ff9e-454d-b2ee-22fde66ae95e",
 					RedirectURIs:            []string{"http://localhost:3000/cb"},
 					TokenEndpointAuthMethod: "client_secret_basic",
 				}
@@ -481,7 +504,7 @@ func TestHandler(t *testing.T) {
 				require.NoError(t, err)
 
 				originalRAT := gjson.Get(actual, "registration_access_token").String()
-				body, res := fetchWithBearerAuth(t, "PUT", ts.URL+client.DynClientsHandlerPath+"/"+expected.OutfacingID, originalRAT, bytes.NewReader(payload))
+				body, res := fetchWithBearerAuth(t, "PUT", ts.URL+client.DynClientsHandlerPath+"/"+expected.GetID(), originalRAT, bytes.NewReader(payload))
 				assert.Equal(t, http.StatusForbidden, res.StatusCode)
 				snapshotx.SnapshotTExcept(t, newResponseSnapshot(body, res), nil)
 			})
@@ -492,14 +515,14 @@ func TestHandler(t *testing.T) {
 				TokenEndpointAuthMethod: "client_secret_basic",
 				Secret:                  "foobarbaz",
 			})
-			require.Equal(t, http.StatusForbidden, res.StatusCode, body)
+			require.Equal(t, http.StatusBadRequest, res.StatusCode, body)
 			snapshotx.SnapshotTExcept(t, newResponseSnapshot(body, res), nil)
 		})
 
 		t.Run("case=delete existing client", func(t *testing.T) {
 			t.Run("endpoint=admin", func(t *testing.T) {
 				expected := &client.Client{
-					OutfacingID:             "delete-existing-client-admin",
+					LegacyClientID:          "23e03b61-3d7b-4dfa-ba07-a05a94929efd",
 					Secret:                  "averylongsecret",
 					RedirectURIs:            []string{"http://localhost:3000/cb"},
 					TokenEndpointAuthMethod: "client_secret_basic",
@@ -507,13 +530,13 @@ func TestHandler(t *testing.T) {
 				body, res := makeJSON(t, ts, "POST", client.ClientsHandlerPath, expected)
 				require.Equal(t, http.StatusCreated, res.StatusCode, body)
 
-				_, res = makeJSON(t, ts, "DELETE", client.ClientsHandlerPath+"/"+expected.OutfacingID, nil)
+				_, res = makeJSON(t, ts, "DELETE", client.ClientsHandlerPath+"/"+expected.GetID(), nil)
 				assert.Equal(t, http.StatusNoContent, res.StatusCode)
 			})
 
 			t.Run("endpoint=selfservice", func(t *testing.T) {
 				expected := &client.Client{
-					OutfacingID:             "delete-existing-client-selfservice",
+					LegacyClientID:          "ef763972-9589-4a22-9a0b-5a9a2abf9982",
 					Secret:                  "averylongsecret",
 					RedirectURIs:            []string{"http://localhost:3000/cb"},
 					TokenEndpointAuthMethod: "client_secret_basic",
@@ -522,7 +545,7 @@ func TestHandler(t *testing.T) {
 				require.Equal(t, http.StatusCreated, res.StatusCode, actual)
 
 				originalRAT := gjson.Get(actual, "registration_access_token").String()
-				_, res = fetchWithBearerAuth(t, "DELETE", ts.URL+client.DynClientsHandlerPath+"/"+expected.OutfacingID, originalRAT, nil)
+				_, res = fetchWithBearerAuth(t, "DELETE", ts.URL+client.DynClientsHandlerPath+"/"+expected.GetID(), originalRAT, nil)
 				assert.Equal(t, http.StatusNoContent, res.StatusCode)
 			})
 		})
