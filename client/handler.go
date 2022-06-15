@@ -158,20 +158,19 @@ func (h *Handler) CreateClient(r *http.Request, validator func(context.Context, 
 	}
 
 	if isDynamic {
-		c.LegacyClientID = uuidx.NewV4().String()
+		c.LegacyClientID = ""
 		if c.Secret != "" {
 			return nil, errorsx.WithStack(herodot.ErrBadRequest.WithReasonf("It is not allowed to choose your own OAuth2 Client secret."))
 		}
 	}
 
+	c.ID = uuidx.NewV4()
 	if c.LegacyClientID == "" {
-		c.LegacyClientID = uuidx.NewV4().String()
+		c.LegacyClientID = c.ID.String()
 	}
 
-	if uid, err := uuid.FromString(c.LegacyClientID); err != nil {
+	if _, err := uuid.FromString(c.LegacyClientID); err != nil {
 		return nil, errorsx.WithStack(herodot.ErrBadRequest.WithReasonf("Only UUID V4 (e.g. 8dcd6868-e294-4180-aa36-fbad26de79a6) can be chosen as OAuth2 Client IDs but got: %s", c.LegacyClientID))
-	} else {
-		c.ID = uid
 	}
 
 	if len(c.Secret) == 0 {
@@ -232,7 +231,6 @@ func (h *Handler) CreateClient(r *http.Request, validator func(context.Context, 
 //       default: jsonError
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var c Client
-
 	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
 		h.r.Writer().WriteError(w, r, errorsx.WithStack(herodot.ErrBadRequest.WithReasonf("Unable to decode the request body: %s", err)))
 		return
