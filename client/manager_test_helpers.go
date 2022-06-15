@@ -261,6 +261,7 @@ func TestHelperCreateGetUpdateDeleteClient(k string, connection *pop.Connection,
 		{
 			t2c1 := *t1c1
 			require.Error(t, connection.Create(&t2c1), "should not be able to create the same client in other manager/tenant; are they backed by the same database?")
+			t2c1.ID = uuid.Nil
 			require.NoError(t, t2.CreateClient(ctx, &t2c1), "we should be able to create a client with the same GetID() but different ID in other tenant")
 		}
 

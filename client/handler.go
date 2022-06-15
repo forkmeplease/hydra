@@ -168,8 +168,10 @@ func (h *Handler) CreateClient(r *http.Request, validator func(context.Context, 
 		c.LegacyClientID = uuidx.NewV4().String()
 	}
 
-	if _, err := uuid.FromString(c.LegacyClientID); err != nil {
+	if uid, err := uuid.FromString(c.LegacyClientID); err != nil {
 		return nil, errorsx.WithStack(herodot.ErrBadRequest.WithReasonf("Only UUID V4 (e.g. 8dcd6868-e294-4180-aa36-fbad26de79a6) can be chosen as OAuth2 Client IDs but got: %s", c.LegacyClientID))
+	} else {
+		c.ID = uid
 	}
 
 	if len(c.Secret) == 0 {
